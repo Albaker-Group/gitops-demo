@@ -1,0 +1,47 @@
+# A deliberately tiny workload. The point is not what it runs - it is that the
+# replica count here is the ONLY thing that decides how many pods exist.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hello
+  namespace: demo
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: hello }
+  template:
+    metadata:
+      labels: { app: hello }
+    spec:
+      # The cluster node is arm64. nginx:alpine is multi-arch, so it runs; a
+      # single-arch amd64 image would sit Pending with a node-affinity message
+      # that never mentions architecture.
+      nodeSelector:
+        kubernetes.io/arch: arm64
+      containers:
+        - name: nginx
+          image: nginx:1.27-alpine
+          ports:
+            - containerPort: 80
+          # Small on purpose: this shares a 2 vCPU / 4 GB node with Argo CD,
+          # cloudprice and all of kube-system.
+          resources:
+            requests: { cpu: 10m, memory: 16Mi }
+            limits:   { cpu: 100m, memory: 64Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: false
+            capabilities:
+              drop: ["ALL"]
+                
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: hello
+  namespace: demo
+spec:
+  selector: { app: hello }
+  ports:
+    - port: 80
+      targetPort: 80
